@@ -12,6 +12,71 @@
 #include <sys/wait.h>	/* for the waitpid() system call */
 #include <signal.h>	/* signal name macros, and the kill() prototype */
 
+#define MAX_BUF_SIZE 1944 //completely arbitrary
+
+typedef struct httpRequest{ //parse the request string and then fill one of these types of structs
+     enum httpRequestMethod
+     {
+          GET = 0,
+          POST = 1
+     } method;
+     char* headers[47];
+     char* body;
+} httpRequest;
+
+typedef struct httpResponse{
+     int code; //404, etc
+     char* headers[47];
+     char* body;
+} httpResponse;
+
+int dynamicRead(const int file, void** buf) //file read with dynamic memory allocation
+{
+     int prevSize = 0;
+     int size = 256;
+     int bytesRead = 0;
+     *buf = calloc(size+1,1);
+     bytesRead = read(file, *buf, size-prevSize);
+     while (bytesRead == size-prevSize && size <= MAX_BUF_SIZE)
+     {
+          prevSize = size;
+          size *= 1.5;
+          *buf = realloc(*buf, size+1);
+          bytesRead = read(file, *buf, size-prevSize);
+     }
+     ((char*)(*buf))[size] = 0;
+     return prevSize + bytesRead;
+}
+
+int nextLineBreak(char* buf, char** end_R, char** nextline_R) //detect any combination of CRLF. *end_R will point to the beginning of CRLF sequence. *nextline_R will point to beginning of next line.
+{
+     int result = 0;
+     int len = 0;
+     char* nextline;
+     char* end = buf;
+     while (*end != '\n' && *end != '\r' && *end != 0 && len < MAX_BUF_SIZE)
+     {
+          len++;
+          end++;
+          if (*end == 0)
+          {
+               result = 1;
+          }
+     }
+     nextline = end;
+     while (*nextline == '\n' && *nextline == '\r' && *nextline != 0 && len < MAX_BUF_SIZE)
+     {
+          len++;
+          nextline++;
+          if (*nextline == 0)
+          {
+               result = 2;
+          }
+     }
+     *end_R = end;
+     *nextline_R = nextline;
+     return result;
+}
 
 void sigchld_handler(int s)
 {
