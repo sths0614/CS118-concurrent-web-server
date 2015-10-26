@@ -11,7 +11,9 @@
 #include <strings.h>
 #include <sys/wait.h>	/* for the waitpid() system call */
 #include <signal.h>	/* signal name macros, and the kill() prototype */
-
+#include <unistd.h>
+#include <string.h> //for strstr
+#include <sys/stat.h> //for struct stat buf
 
 void sigchld_handler(int s)
 {
@@ -84,6 +86,13 @@ int main(int argc, char *argv[])
      return 0; /* we never get here */
 }
 
+int file_exist (char *filename)
+{
+  struct stat   buffer;   
+  return (stat (filename, &buffer) == 0);
+}
+
+
 /******** DOSTUFF() *********************
  There is a separate instance of this function 
  for each connection.  It handles all communication
@@ -91,13 +100,167 @@ int main(int argc, char *argv[])
  *****************************************/
 void dostuff (int sock)
 {
-   int n;
-   char buffer[256];
-      
-   bzero(buffer,256);
-   n = read(sock,buffer,255);
-   if (n < 0) error("ERROR reading from socket");
-   printf("Here is the message: %s\n",buffer);
-   n = write(sock,"I got your message",18);
-   if (n < 0) error("ERROR writing to socket");
+  int n;
+  char buffer[256];
+  char fname[256];
+  bzero(buffer,256);
+  bzero(fname, 256);
+
+  n = read(sock,buffer,255);
+  if (n < 0) error("ERROR reading from socket");
+  printf("Here is the message: %s\n",buffer);
+
+  // // error checker for POST
+  // char* fpath_start = strstr(buffer, "POST");
+  // if (fpath_start == buffer){
+  //   // error = returnError(501);
+  // }
+
+  char* fpath_start = strstr(buffer, "GET /");
+  if (fpath_start != buffer){
+    // error = returnError(400);
+    write(sock, "HTTP/1.1 400 Bad Request\n", 25);
+    error("ERROR Bad Request");
+    //TODO
+    return;
+  }
+
+  fpath_start += 5;
+  //Get path of the file
+  char* fpath_end = strstr(fpath_start, " HTTP");
+  int fpath_length = fpath_end - fpath_start;
+  strncpy(fname, fpath_start, fpath_length);
+  fname[fpath_length] = '\0';
+  printf("Filename is %s\n", fname);
+
+  if (!file_exist(fname))
+  {
+    printf ("File doesn't exist!!! from function\n");
+    write(sock, "HTTP/1.1 404 Not Found\n", 23);
+    write(sock, "Connection: close\n\n", 18);
+    return;
+  }
+
+
+  // struct stat b;
+  // if (stat(fname, &b) != 0){
+  //   printf("File does not exist!!\n");
+  //   write(sock, "HTTP/1.1 404 Not Found\n", 23);
+  //   write(sock, "Connection: close\n\n", 18);
+  //   return;
+  //   //TODO
+  // }
+
+  printf("Passed file existence test\n");
+
+  //Open file, get filesize
+  FILE* f = fopen(fname, "r");
+  fseek(f, 0L, SEEK_END);
+  int fsize = (int) ftell(f);
+  fseek(f, 0L, SEEK_SET);
+  printf("Filesize is %d\n", fsize);
+
+  //read the file into fbuf
+  char* fbuf = (char *)malloc(fsize*sizeof(char));
+  fread(fbuf, 1, fsize, f);
+  write(sock, "HTTP/1.1 200 OK\n", 16);
+  write(sock, "Content-Language: en-US\n", 24);
+  char formatted_CL[256];
+  sprintf(formatted_CL, "Content-Length: %d\n", fsize);
+  write(sock, formatted_CL, strlen(formatted_CL));
+
+  write(sock, "Connection: keep-alive\n\n", 24);    
+  write(sock, fbuf, fsize);
+  write(sock, "Connection: close\n\n", 19);
+
+
+  
+  free(fbuf);
+  fclose(f);
+  return;
+
+
+  // NANAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+
+  // int n;
+  // char buffer[512];
+  // char filename[512];
+
+  // bzero(buffer, 512);
+  // bzero(filename, 512);
+
+  // n = read(sock, buffer, 255);
+  // if (n < 0) error("ERROR reading from socket");
+  // printf("Here is the message: %s\n", buffer);
+
+  // // parse filename
+  // char* start = strstr(buffer, "GET /");
+  // if (start == buffer)
+  //   start += 5;
+  // else {
+  //   write(sock, "HTTP/1.1 ", 9);
+  //   write(sock, "500 Internal Error\n", 18-1);
+  //   error("ERROR request type not supported");
+  //   return ;
+  // }
+
+  // char* end = strstr(start, " HTTP/");
+  // int length = end - start;
+  // strncpy(filename, start, length);
+  // filename[length] = '\0';
+  // printf("Filename: %s\n", filename);
+
+  // // begin header lines
+  // write(sock, "HTTP/1.1 ", 9);
+
+  // // check if file exists
+  // struct stat buf;
+  // if (length <= 0 || stat(filename, &buf) != 0) {
+  //   // no file or file not found
+  //   printf("404: File not found");
+  //   write(sock, "404 Not Found\n", 15-1);
+  //   write(sock, "Content-Language: en-US\n", 25-1);
+  //   write(sock, "Content-Length: 0\n", 19-1);
+  //   write(sock, "Content-Type: text/html\n", 23-1);
+  //   write(sock, "Connection: close\n\n", 21-2);
+
+  //   return ;
+  // }
+
+  // // file found
+  // write(sock, "200 OK\n", 6-1); // file found
+  // write(sock, "Content-Language: en-US\n", 25-1);
+  // FILE* file = fopen(filename, "r");
+
+  // // get filesize
+  // fseek(file, 0L, SEEK_END);
+  // int filesize = (int) ftell(file);
+  // fseek(file, 0L, SEEK_SET);
+
+  // // TODO: optional information
+  // // send RFC 1123 date
+  // // send RFC 1123 last-modified
+  // // send Content-Range
+  // // send Content-Type
+
+  // // send content length
+  // sprintf(buffer, "Content-Length: %d\n", filesize);
+  // printf("Filesize: %d\n", filesize);
+  // write(sock, buffer, strlen(buffer));
+
+  // // load file into memory
+  // char* filebuf = (char *) malloc(sizeof(char) * filesize);
+  // fread(filebuf, 1, filesize, file);
+
+  // // send file
+  // write(sock, "Connection: keep-alive\n\n", 26-2);
+  // write(sock, filebuf, filesize);
+  // if (ferror(file)) error("ERROR reading file");
+  // write(sock, "Connection: close\n\n", 21-2);
+
+  // if (n < 0) error("ERROR writing to socket");
+  // free(filebuf);
+  // fclose(file);
+  // return ;
 }
