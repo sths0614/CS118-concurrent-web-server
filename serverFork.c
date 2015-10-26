@@ -11,9 +11,77 @@
 #include <strings.h>
 #include <sys/wait.h>	/* for the waitpid() system call */
 #include <signal.h>	/* signal name macros, and the kill() prototype */
+<<<<<<< HEAD
 #include <unistd.h>
 #include <string.h> //for strstr
 #include <sys/stat.h> //for struct stat buf
+=======
+
+#define MAX_BUF_SIZE 1944 //completely arbitrary
+
+typedef struct httpRequest{ //parse the request string and then fill one of these types of structs
+     enum httpRequestMethod
+     {
+          GET = 0,
+          POST = 1
+     } method;
+     char* headers[47];
+     char* body;
+} httpRequest;
+
+typedef struct httpResponse{
+     int code; //404, etc
+     char* headers[47];
+     char* body;
+} httpResponse;
+
+int dynamicRead(const int file, void** buf) //file read with dynamic memory allocation
+{
+     int prevSize = 0;
+     int size = 256;
+     int bytesRead = 0;
+     *buf = calloc(size+1,1);
+     bytesRead = read(file, *buf, size-prevSize);
+     while (bytesRead == size-prevSize && size <= MAX_BUF_SIZE)
+     {
+          prevSize = size;
+          size *= 1.5;
+          *buf = realloc(*buf, size+1);
+          bytesRead = read(file, *buf, size-prevSize);
+     }
+     ((char*)(*buf))[size] = 0;
+     return prevSize + bytesRead;
+}
+
+int nextLineBreak(char* buf, char** end_R, char** nextline_R) //detect any combination of CRLF. *end_R will point to the beginning of CRLF sequence. *nextline_R will point to beginning of next line.
+{
+     int result = 0;
+     int len = 0;
+     char* nextline;
+     char* end = buf;
+     while (*end != '\n' && *end != '\r' && *end != 0 && len < MAX_BUF_SIZE)
+     {
+          len++;
+          end++;
+          if (*end == 0)
+          {
+               result = 1;
+          }
+     }
+     nextline = end;
+     while (*nextline == '\n' && *nextline == '\r' && *nextline != 0 && len < MAX_BUF_SIZE)
+     {
+          len++;
+          nextline++;
+          if (*nextline == 0)
+          {
+               result = 2;
+          }
+     }
+     *end_R = end;
+     *nextline_R = nextline;
+     return result;
+}
 
 void sigchld_handler(int s)
 {
@@ -178,89 +246,4 @@ void dostuff (int sock)
   free(fbuf);
   fclose(f);
   return;
-
-
-  // NANAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-
-
-  // int n;
-  // char buffer[512];
-  // char filename[512];
-
-  // bzero(buffer, 512);
-  // bzero(filename, 512);
-
-  // n = read(sock, buffer, 255);
-  // if (n < 0) error("ERROR reading from socket");
-  // printf("Here is the message: %s\n", buffer);
-
-  // // parse filename
-  // char* start = strstr(buffer, "GET /");
-  // if (start == buffer)
-  //   start += 5;
-  // else {
-  //   write(sock, "HTTP/1.1 ", 9);
-  //   write(sock, "500 Internal Error\n", 18-1);
-  //   error("ERROR request type not supported");
-  //   return ;
-  // }
-
-  // char* end = strstr(start, " HTTP/");
-  // int length = end - start;
-  // strncpy(filename, start, length);
-  // filename[length] = '\0';
-  // printf("Filename: %s\n", filename);
-
-  // // begin header lines
-  // write(sock, "HTTP/1.1 ", 9);
-
-  // // check if file exists
-  // struct stat buf;
-  // if (length <= 0 || stat(filename, &buf) != 0) {
-  //   // no file or file not found
-  //   printf("404: File not found");
-  //   write(sock, "404 Not Found\n", 15-1);
-  //   write(sock, "Content-Language: en-US\n", 25-1);
-  //   write(sock, "Content-Length: 0\n", 19-1);
-  //   write(sock, "Content-Type: text/html\n", 23-1);
-  //   write(sock, "Connection: close\n\n", 21-2);
-
-  //   return ;
-  // }
-
-  // // file found
-  // write(sock, "200 OK\n", 6-1); // file found
-  // write(sock, "Content-Language: en-US\n", 25-1);
-  // FILE* file = fopen(filename, "r");
-
-  // // get filesize
-  // fseek(file, 0L, SEEK_END);
-  // int filesize = (int) ftell(file);
-  // fseek(file, 0L, SEEK_SET);
-
-  // // TODO: optional information
-  // // send RFC 1123 date
-  // // send RFC 1123 last-modified
-  // // send Content-Range
-  // // send Content-Type
-
-  // // send content length
-  // sprintf(buffer, "Content-Length: %d\n", filesize);
-  // printf("Filesize: %d\n", filesize);
-  // write(sock, buffer, strlen(buffer));
-
-  // // load file into memory
-  // char* filebuf = (char *) malloc(sizeof(char) * filesize);
-  // fread(filebuf, 1, filesize, file);
-
-  // // send file
-  // write(sock, "Connection: keep-alive\n\n", 26-2);
-  // write(sock, filebuf, filesize);
-  // if (ferror(file)) error("ERROR reading file");
-  // write(sock, "Connection: close\n\n", 21-2);
-
-  // if (n < 0) error("ERROR writing to socket");
-  // free(filebuf);
-  // fclose(file);
-  // return ;
 }
