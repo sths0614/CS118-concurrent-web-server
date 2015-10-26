@@ -11,77 +11,75 @@
 #include <strings.h>
 #include <sys/wait.h>	/* for the waitpid() system call */
 #include <signal.h>	/* signal name macros, and the kill() prototype */
-<<<<<<< HEAD
 #include <unistd.h>
 #include <string.h> //for strstr
 #include <sys/stat.h> //for struct stat buf
-=======
 
-#define MAX_BUF_SIZE 1944 //completely arbitrary
+// #define MAX_BUF_SIZE 1944 //completely arbitrary
 
-typedef struct httpRequest{ //parse the request string and then fill one of these types of structs
-     enum httpRequestMethod
-     {
-          GET = 0,
-          POST = 1
-     } method;
-     char* headers[47];
-     char* body;
-} httpRequest;
+// typedef struct httpRequest{ //parse the request string and then fill one of these types of structs
+//      enum httpRequestMethod
+//      {
+//           GET = 0,
+//           POST = 1
+//      } method;
+//      char* headers[47];
+//      char* body;
+// } httpRequest;
 
-typedef struct httpResponse{
-     int code; //404, etc
-     char* headers[47];
-     char* body;
-} httpResponse;
+// typedef struct httpResponse{
+//      int code; //404, etc
+//      char* headers[47];
+//      char* body;
+// } httpResponse;
 
-int dynamicRead(const int file, void** buf) //file read with dynamic memory allocation
-{
-     int prevSize = 0;
-     int size = 256;
-     int bytesRead = 0;
-     *buf = calloc(size+1,1);
-     bytesRead = read(file, *buf, size-prevSize);
-     while (bytesRead == size-prevSize && size <= MAX_BUF_SIZE)
-     {
-          prevSize = size;
-          size *= 1.5;
-          *buf = realloc(*buf, size+1);
-          bytesRead = read(file, *buf, size-prevSize);
-     }
-     ((char*)(*buf))[size] = 0;
-     return prevSize + bytesRead;
-}
+// int dynamicRead(const int file, void** buf) //file read with dynamic memory allocation
+// {
+//      int prevSize = 0;
+//      int size = 256;
+//      int bytesRead = 0;
+//      *buf = calloc(size+1,1);
+//      bytesRead = read(file, *buf, size-prevSize);
+//      while (bytesRead == size-prevSize && size <= MAX_BUF_SIZE)
+//      {
+//           prevSize = size;
+//           size *= 1.5;
+//           *buf = realloc(*buf, size+1);
+//           bytesRead = read(file, *buf, size-prevSize);
+//      }
+//      ((char*)(*buf))[size] = 0;
+//      return prevSize + bytesRead;
+// }
 
-int nextLineBreak(char* buf, char** end_R, char** nextline_R) //detect any combination of CRLF. *end_R will point to the beginning of CRLF sequence. *nextline_R will point to beginning of next line.
-{
-     int result = 0;
-     int len = 0;
-     char* nextline;
-     char* end = buf;
-     while (*end != '\n' && *end != '\r' && *end != 0 && len < MAX_BUF_SIZE)
-     {
-          len++;
-          end++;
-          if (*end == 0)
-          {
-               result = 1;
-          }
-     }
-     nextline = end;
-     while (*nextline == '\n' && *nextline == '\r' && *nextline != 0 && len < MAX_BUF_SIZE)
-     {
-          len++;
-          nextline++;
-          if (*nextline == 0)
-          {
-               result = 2;
-          }
-     }
-     *end_R = end;
-     *nextline_R = nextline;
-     return result;
-}
+// int nextLineBreak(char* buf, char** end_R, char** nextline_R) //detect any combination of CRLF. *end_R will point to the beginning of CRLF sequence. *nextline_R will point to beginning of next line.
+// {
+//      int result = 0;
+//      int len = 0;
+//      char* nextline;
+//      char* end = buf;
+//      while (*end != '\n' && *end != '\r' && *end != 0 && len < MAX_BUF_SIZE)
+//      {
+//           len++;
+//           end++;
+//           if (*end == 0)
+//           {
+//                result = 1;
+//           }
+//      }
+//      nextline = end;
+//      while (*nextline == '\n' && *nextline == '\r' && *nextline != 0 && len < MAX_BUF_SIZE)
+//      {
+//           len++;
+//           nextline++;
+//           if (*nextline == 0)
+//           {
+//                result = 2;
+//           }
+//      }
+//      *end_R = end;
+//      *nextline_R = nextline;
+//      return result;
+// }
 
 void sigchld_handler(int s)
 {
@@ -89,6 +87,7 @@ void sigchld_handler(int s)
 }
 
 void dostuff(int); /* function prototype */
+
 void error(char *msg)
 {
     perror(msg);
@@ -156,7 +155,7 @@ int main(int argc, char *argv[])
 
 int file_exist (char *filename)
 {
-  struct stat   buffer;   
+  struct stat buffer;   
   return (stat (filename, &buffer) == 0);
 }
 
@@ -171,6 +170,8 @@ void dostuff (int sock)
   int n;
   char buffer[256];
   char fname[256];
+  char fent[256];
+  char type[256];
   bzero(buffer,256);
   bzero(fname, 256);
 
@@ -178,57 +179,50 @@ void dostuff (int sock)
   if (n < 0) error("ERROR reading from socket");
   printf("Here is the message: %s\n",buffer);
 
-  // // error checker for POST
-  // char* fpath_start = strstr(buffer, "POST");
-  // if (fpath_start == buffer){
-  //   // error = returnError(501);
-  // }
 
+  // Check request type
   char* fpath_start = strstr(buffer, "GET /");
   if (fpath_start != buffer){
-    // error = returnError(400);
     write(sock, "HTTP/1.1 400 Bad Request\n", 25);
     error("ERROR Bad Request");
-    //TODO
     return;
   }
 
-  fpath_start += 5;
-  //Get path of the file
-  char* fpath_end = strstr(fpath_start, " HTTP");
+  fpath_start += 5; // "GET /"
+  char* fpath_end = strstr(buffer, " HTTP");
   int fpath_length = fpath_end - fpath_start;
   strncpy(fname, fpath_start, fpath_length);
   fname[fpath_length] = '\0';
   printf("Filename is %s\n", fname);
 
+  char* fent_start = strstr(fname, ".");
+  char* fent_end = &fname[fpath_length];
+  int fent_length = fent_end - fent_start;
+  strncpy(fent, fent_start, fent_length);
+  fent[fent_length] = '\0';
+  printf("File extension is %s\n", fent);
+
   if (!file_exist(fname))
   {
-    printf ("File doesn't exist!!! from function\n");
+    // printf ("404: Not Found\n");
     write(sock, "HTTP/1.1 404 Not Found\n", 23);
-    write(sock, "Connection: close\n\n", 18);
+    write(sock, "Content-Language: en-US\n", 24);
+    write(sock, "Content-Length: 0\n", 18);
+    write(sock, "Content-Type: text/html\n", 24);
+    write(sock, "Connection: close\n\n", 19);
     return;
   }
 
+  // printf("Passed file existence test\n");
 
-  // struct stat b;
-  // if (stat(fname, &b) != 0){
-  //   printf("File does not exist!!\n");
-  //   write(sock, "HTTP/1.1 404 Not Found\n", 23);
-  //   write(sock, "Connection: close\n\n", 18);
-  //   return;
-  //   //TODO
-  // }
-
-  printf("Passed file existence test\n");
-
-  //Open file, get filesize
+  // open file, get filesize
   FILE* f = fopen(fname, "r");
   fseek(f, 0L, SEEK_END);
   int fsize = (int) ftell(f);
   fseek(f, 0L, SEEK_SET);
   printf("Filesize is %d\n", fsize);
 
-  //read the file into fbuf
+  // read the file into fbuf
   char* fbuf = (char *)malloc(fsize*sizeof(char));
   fread(fbuf, 1, fsize, f);
   write(sock, "HTTP/1.1 200 OK\n", 16);
@@ -237,10 +231,28 @@ void dostuff (int sock)
   sprintf(formatted_CL, "Content-Length: %d\n", fsize);
   write(sock, formatted_CL, strlen(formatted_CL));
 
-  write(sock, "Connection: keep-alive\n\n", 24);    
+  // change content-type according to file extension
+  if(strcmp(fent, ".jpg") == 0 || strcmp(fent, ".jpeg") == 0){
+    strncpy(type, "image/jpeg", 10);
+  }
+  else if (strcmp(fent, ".gif") == 0){
+    strncpy(type, "image/gif",9 );
+  }
+  else if (strcmp(fent, ".html") == 0){
+    strncpy(type, "text/html", 9);
+  }
+  else{
+    strncpy(type, "text/plain", 10);
+  }
+  printf("File type is %s\n", type);
+  char formatted_CT[256];
+  sprintf(formatted_CT, "Content-Type: %s\n", type);
+  write(sock, formatted_CT, strlen(formatted_CT));
+  
+  write(sock, "Connection: keep-alive\n\n", 24);   
+
   write(sock, fbuf, fsize);
   write(sock, "Connection: close\n\n", 19);
-
 
   
   free(fbuf);
