@@ -168,6 +168,7 @@ int file_exist (char *filename)
 void dostuff (int sock)
 {
   int n;
+  char temp[256];
   char buffer[256];
   char fname[256];
   char fent[256];
@@ -179,15 +180,26 @@ void dostuff (int sock)
   if (n < 0) error("ERROR reading from socket");
   printf("Here is the message: %s\n",buffer);
 
+  buffer[255] = 0;
+  
+  /*
+  if (n == 256)
+  {
+       write(sock, "HTTP/1.1 413 Payload Too Large\r\n", 34);
+       error("Request too long");
+       return;
+  }
+  */
 
   // Check request type
   char* fpath_start = strstr(buffer, "GET /");
   if (fpath_start != buffer){
-    write(sock, "HTTP/1.1 400 Bad Request\n", 25);
+    write(sock, "HTTP/1.1 400 Bad Request", 25);
     error("ERROR Bad Request");
     return;
   }
 
+  // Obtain file path
   fpath_start += 5; // "GET /"
   char* fpath_end = strstr(buffer, " HTTP");
   int fpath_length = fpath_end - fpath_start;
@@ -195,21 +207,44 @@ void dostuff (int sock)
   fname[fpath_length] = '\0';
   printf("Filename is %s\n", fname);
 
-  char* fent_start = strstr(fname, ".");
+  char* fent_start = &fname[fpath_length];
+  while (fent_start >= fname)
+  {
+       if (*fent_start == '.')
+            break;
+       else if (*fent_start == '/')
+       {
+            fent_start = 0;
+            break;
+       }
+       fent_start--;
+  }
   char* fent_end = &fname[fpath_length];
   int fent_length = fent_end - fent_start;
-  strncpy(fent, fent_start, fent_length);
-  fent[fent_length] = '\0';
-  printf("File extension is %s\n", fent);
+  
+  printf("diff:%d",fent_start - fname);
+  
+  if (fent_start < fname)
+  {
+       printf("No file extension");
+       fent_length = 0;
+       fent[0] = '\0';
+  }
+  else
+  {
+       strncpy(fent, fent_start, fent_length);
+       fent[fent_length] = '\0';
+       printf("File extension is %s\n", fent);
+  }
 
   if (!file_exist(fname))
   {
     // printf ("404: Not Found\n");
     write(sock, "HTTP/1.1 404 Not Found\n", 23);
     write(sock, "Content-Language: en-US\n", 24);
-    write(sock, "Content-Length: 0\n", 18);
+    write(sock, "Content-Length: 0\n", 19);
     write(sock, "Content-Type: text/html\n", 24);
-    write(sock, "Connection: close\n\n", 19);
+    write(sock, "Connection: close\n", 18);
     return;
   }
 
@@ -233,26 +268,24 @@ void dostuff (int sock)
 
   // change content-type according to file extension
   if(strcmp(fent, ".jpg") == 0 || strcmp(fent, ".jpeg") == 0){
-    strncpy(type, "image/jpeg", 10);
+    strncpy(type, "image/jpeg\0", 11);
   }
   else if (strcmp(fent, ".gif") == 0){
-    strncpy(type, "image/gif",9 );
+    strncpy(type, "image/gif\0", 10);
   }
   else if (strcmp(fent, ".html") == 0){
-    strncpy(type, "text/html", 9);
+    strncpy(type, "text/html\0", 10);
   }
   else{
-    strncpy(type, "text/plain", 10);
+    strncpy(type, "text/plain\0", 11);
   }
   printf("File type is %s\n", type);
   char formatted_CT[256];
   sprintf(formatted_CT, "Content-Type: %s\n", type);
   write(sock, formatted_CT, strlen(formatted_CT));
-  
-  write(sock, "Connection: keep-alive\n\n", 24);   
+  write(sock, "Connection: close\n\n", 19);
 
   write(sock, fbuf, fsize);
-  write(sock, "Connection: close\n\n", 19);
 
   
   free(fbuf);
