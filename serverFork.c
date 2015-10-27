@@ -207,6 +207,7 @@ void dostuff (int sock)
   fname[fpath_length] = '\0';
   printf("Filename is %s\n", fname);
 
+  // Detect file extension
   char* fent_start = &fname[fpath_length];
   while (fent_start >= fname)
   {
@@ -222,8 +223,7 @@ void dostuff (int sock)
   char* fent_end = &fname[fpath_length];
   int fent_length = fent_end - fent_start;
   
-  printf("diff:%d",fent_start - fname);
-  
+  // No file extension?
   if (fent_start < fname)
   {
        printf("No file extension");
@@ -236,22 +236,22 @@ void dostuff (int sock)
        fent[fent_length] = '\0';
        printf("File extension is %s\n", fent);
   }
-
+     
   if (!file_exist(fname))
   {
     // printf ("404: Not Found\n");
-    write(sock, "HTTP/1.1 404 Not Found\n", 23);
-    write(sock, "Content-Language: en-US\n", 24);
-    write(sock, "Content-Length: 0\n", 19);
-    write(sock, "Content-Type: text/html\n", 24);
-    write(sock, "Connection: close\n", 18);
+    write(sock, "HTTP/1.1 404 Not Found\r\n", 24);
+    write(sock, "Content-Language: en-US\r\n", 25);
+    write(sock, "Content-Length: 0\r\n", 20);
+    write(sock, "Content-Type: text/html\r\n", 25);
+    write(sock, "Connection: close\r\n", 19);
     return;
   }
 
   // printf("Passed file existence test\n");
 
   // open file, get filesize
-  FILE* f = fopen(fname, "r");
+  FILE* f = fopen(fname, "rb");
   fseek(f, 0L, SEEK_END);
   int fsize = (int) ftell(f);
   fseek(f, 0L, SEEK_SET);
@@ -260,10 +260,10 @@ void dostuff (int sock)
   // read the file into fbuf
   char* fbuf = (char *)malloc(fsize*sizeof(char));
   fread(fbuf, 1, fsize, f);
-  write(sock, "HTTP/1.1 200 OK\n", 16);
-  write(sock, "Content-Language: en-US\n", 24);
+  write(sock, "HTTP/1.1 200 OK\r\n", 17);
+  write(sock, "Content-Language: en-US\r\n", 25);
   char formatted_CL[256];
-  sprintf(formatted_CL, "Content-Length: %d\n", fsize);
+  sprintf(formatted_CL, "Content-Length: %d\r\n", fsize);
   write(sock, formatted_CL, strlen(formatted_CL));
 
   // change content-type according to file extension
@@ -281,9 +281,9 @@ void dostuff (int sock)
   }
   printf("File type is %s\n", type);
   char formatted_CT[256];
-  sprintf(formatted_CT, "Content-Type: %s\n", type);
+  sprintf(formatted_CT, "Content-Type: %s\r\n", type);
   write(sock, formatted_CT, strlen(formatted_CT));
-  write(sock, "Connection: close\n\n", 19);
+  write(sock, "Connection: close\r\n\r\n", 21);
 
   write(sock, fbuf, fsize);
 
